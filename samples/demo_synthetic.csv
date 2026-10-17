@@ -1,0 +1,6 @@
+complaint_id,title,description,category,created_at,status,location_label,latitude,longitude,department,source,synthetic
+S1,Streetlight out,Demo synthetic: streetlight out,Streetlights,2025-10-01T09:00:00Z,open,Downtown,40.7128,-74.0060,Electric,synthetic,true
+S2,Pothole,Demo synthetic: large pothole,Roads,2025-10-02T10:00:00Z,open,Uptown,40.7831,-73.9712,Roads,synthetic,true
+S3,Garbage pile,Demo synthetic: uncollected garbage,Sanitation,2025-10-03T11:00:00Z,in_progress,Midtown,40.7580,-73.9855,Sanitation,synthetic,true
+S4,Blocked drain,Demo synthetic: water pooling,Drainage,2025-10-04T12:00:00Z,open,Downtown,40.7130,-74.0070,Drainage,synthetic,true
+S5,Water leak,Demo synthetic: pipe leak,Water,2025-10-05T13:00:00Z,resolved,Uptown,40.7840,-73.9720,Water,synthetic,true
