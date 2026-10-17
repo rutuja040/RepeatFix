@@ -31,9 +31,11 @@ The service uses only fields that exist on `Complaint`:
 | Time proximity | `TIME_WINDOW_DAYS = 30.0` | 0.10 | Requires valid created_at. |
 
 Constraints:
-- `TEXT_REQUIRED_FOR_CANDIDATE = 0.60` — minimum text content/similarity context for non-exact-source relations.
-- If a relation has only text similarity (single evidence type), it is rejected (insufficient).
-- A candidate requires at least 2 evidence types or strong text+location (sim>=0.70 and location evidence present) before acceptance.
+- A `potential_recurrence` relation is accepted only when **all four** independent evidence types are present together: text similarity (`>= SIMILARITY_THRESHOLD`), same category, strong geographic proximity (`nearby` via valid lat/lon `<= LOCATION_METERS_MAX`), and time proximity (`<= TIME_WINDOW_DAYS` with valid `created_at`).
+- If any of the four is missing, the candidate is rejected. In particular:
+  - text similarity alone is rejected (insufficient);
+  - a weak same-administrative-area match (0.05) does **not** substitute for validated coordinates;
+  - a different category or a time gap outside the window disqualifies the candidate.
 - Confidence = min(1.0, sum of contributions). Label: high >=0.8, medium >=0.5, low <0.5. This is **explainable aggregation**, not a calibrated probability.
 
 ## Missing data handling

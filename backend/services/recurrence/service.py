@@ -18,7 +18,6 @@ from backend.services.recurrence.types import (
     RecurrenceReason,
     RecurrenceRelation,
     SIMILARITY_THRESHOLD,
-    TEXT_REQUIRED_FOR_CANDIDATE,
     TIME_WINDOW_DAYS,
     LOCATION_METERS_MAX,
 )
@@ -175,23 +174,20 @@ class RecurrenceAnalysisService:
                     )
                     contrib_total += time_contribution
 
-            # Conservative rules: text similarity alone is insufficient
-            if sim < TEXT_REQUIRED_FOR_CANDIDATE and len(reasons) == 0:
-                continue  # no evidence
-            if len(reasons) == 1 and reasons[0].code == "text_similarity":
-                # text only - insufficient per requirements
+            # Conservative acceptance rule (Phase D1).
+            # A potential recurrence requires multiple independent evidence types.
+            # Text similarity alone is never sufficient, and weak admin-area
+            # location must not substitute for validated geographic proximity.
+            # Require text similarity, category compatibility, strong geographic
+            # proximity and time proximity together; reject if any is missing.
+            required_codes = {
+                "text_similarity",
+                "same_category",
+                "nearby",
+                "time_proximity",
+            }
+            if not required_codes.issubset({r.code for r in reasons}):
                 continue
-            if sim >= SIMILARITY_THRESHOLD and (loc_contribution > 0 or contrib_total - _CONTRIB_TEXT >= 0.05):
-                # has text + some other evidence
-                pass
-            # require at least 2 different evidence types or strong combined evidence
-            if len(set(r.code for r in reasons)) < 2 and contrib_total < 0.5:
-                # be conservative; only proceed if we have multiple evidence types
-                # or if text+location strong enough
-                if not (sim >= SIMILARITY_THRESHOLD and loc_contribution > 0):
-                    # allow if category+time+text? check
-                    if len(set(r.code for r in reasons)) < 2:
-                        continue  # insufficient evidence
 
             confidence = min(1.0, contrib_total)
             confidence_label = self._label_confidence(confidence)
