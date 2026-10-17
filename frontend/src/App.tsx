@@ -7,6 +7,7 @@ import { ComplaintsPage } from './pages/ComplaintsPage'
 import { ComplaintDetailPage } from './pages/ComplaintDetailPage'
 import { NewComplaintPage } from './pages/NewComplaintPage'
 import { EditComplaintPage } from './pages/EditComplaintPage'
+import { ImportsPage } from './pages/ImportsPage'
 
 function NotFoundPage() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route path="complaints/new" element={<NewComplaintPage />} />
           <Route path="complaints/:complaintId" element={<ComplaintDetailPage />} />
           <Route path="complaints/:complaintId/edit" element={<EditComplaintPage />} />
+          <Route path="imports" element={<ImportsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

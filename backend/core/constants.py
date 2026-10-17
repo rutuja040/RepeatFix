@@ -13,3 +13,14 @@ SORTABLE_FIELDS: tuple[str, ...] = (
     "status",
     "category",
 )
+
+# CSV import status values (see docs/data_import.md).
+IMPORT_STATUS_COMPLETED: str = "completed"
+IMPORT_STATUS_EMPTY: str = "empty"
+IMPORT_STATUS_FAILED: str = "failed"
+
+IMPORT_STATUSES: tuple[str, ...] = (
+    IMPORT_STATUS_COMPLETED,
+    IMPORT_STATUS_EMPTY,
+    IMPORT_STATUS_FAILED,
+)

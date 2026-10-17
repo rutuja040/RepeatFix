@@ -11,15 +11,15 @@ or urgency.
 
 ## Status
 
-Phase B (complaint data & management) complete.
+Phase C (CSV data ingestion and data quality) complete.
 
-- Backend: FastAPI + SQLite. Full complaint management — filtered/sorted/paginated list,
-  create, detail, partial update, and an append-only change history. Transparent rule-based
-  prioritization module (unit-tested, deterministic).
-- Frontend: React + TypeScript + Vite SPA with a complaint browser (filters, sorting,
-  pagination), complaint detail with history, and create/edit forms, plus a home dashboard.
-- Tests: backend `pytest` (65 passing), frontend `vitest` (24 passing); production build passing.
-- Full features (CSV import, recurrence analysis, evaluation, simulation, dashboard) are
+- Backend: CSV ingestion with bounded streaming, UTF-8 (with UTF-8-BOM handling), column alias
+  detection and explicit mapping, row-level validation, duplicate/idempotency detection,
+  provenance tracking, two-phase transaction, and persistent import metadata.
+- Frontend: Import page with file upload, column mapping editor, dry-run preview, results,
+  and import history; navigation link added.
+- Tests: backend `pytest` (112 passing), frontend `vitest` (39 passing); lint/typecheck/build passing.
+- Remaining features (recurrence analysis, evaluation, simulation, dashboard) are
   planned in later phases — see `docs/development_log.md`.
 
 ## Technology stack
@@ -93,6 +93,10 @@ counts; the complaint browser lives under `/complaints`.
 | PATCH | `/api/v1/complaints/{complaint_id}` | partial update (records history) |
 | GET | `/api/v1/complaints/{complaint_id}/history` | append-only field-change history |
 | GET | `/api/v1/meta/complaints` | totals, status counts, category counts |
+| GET | `/api/v1/imports/fields` | supported fields, aliases, limits |
+| POST | `/api/v1/imports/csv` | import CSV (supports `dry_run`, `mapping`, `source_label`, `synthetic`) |
+| GET | `/api/v1/imports` | import history (paginated, `X-Total-Count`) |
+| GET | `/api/v1/imports/{import_id}` | import detail/summary |
 
 ### Configuration
 
@@ -126,10 +130,17 @@ Pop-Location
 
 ## Importing a dataset
 
-CSV import is planned for **Phase C**. It is not implemented yet. A CSV workflow with column
-mapping, validation, and an import summary will be documented here when available.
+RepeatFix supports CSV import with automatic column alias detection, explicit overrides,
+row-level validation, duplicate/idempotency controls, and a dry-run preview.
 
-Until then, you may create complaints through the API:
+- UI: http://localhost:5173/imports (after starting frontend)
+- Fields metadata: `GET /api/v1/imports/fields`
+- Import: `POST /api/v1/imports/csv` (multipart: `file`, optional `mapping` JSON, `source_label`, `synthetic`, `dry_run`)
+- Limits: max file size 100 MB, max rows 50,000; UTF-8 and UTF-8-BOM only; supported MIME `text/csv`, `application/csv`
+
+Full details in [`docs/data_import.md`](docs/data_import.md).
+
+You can also create complaints directly through the API:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/complaints `
@@ -143,6 +154,7 @@ Sample files in `samples/` are **synthetic demo data**, not real civic complaint
 
 - `docs/architecture.md` — architecture, data flow, schema, API structure
 - `docs/data_dictionary.md` — field definitions and provenance categories
+- `docs/data_import.md` — CSV import workflow, mapping, validation, duplicates, limits
 - `docs/prioritization_method.md` — scoring formula, assumptions, missing-value behavior
 - `docs/evaluation_plan.md` — research question, baselines, metrics, leakage prevention
 - `docs/limitations.md` — unsupported claims and data risks
@@ -152,7 +164,7 @@ Sample files in `samples/` are **synthetic demo data**, not real civic complaint
 
 - Prioritization is a transparent baseline only; it is **not** validated on real data yet,
   and scores are not computed/stored for complaints via the API yet.
-- No CSV import, recurrence analysis, evaluation, or simulation yet.
+- No recurrence analysis, evaluation, or simulation yet (planned).
 - No authentication/authorization; history `changed_by` is a fixed placeholder (`api`).
 - No delete endpoint (records are edited, not removed).
 - No real dataset is bundled; all bundled rows are explicitly synthetic.

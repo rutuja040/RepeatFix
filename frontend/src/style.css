@@ -694,3 +694,89 @@ h3 {
     animation: none;
   }
 }
+
+/* ------------------------------------------------ imports */
+
+.import-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.summary-cell {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.summary-cell dt {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.summary-cell dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.import-details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface-alt);
+}
+
+.import-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.import-details ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.mapping-table select {
+  font: inherit;
+  max-width: 100%;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-strong);
+}
+
+.issues-table td {
+  vertical-align: top;
+}
+
+.status-issue-rejected {
+  background: var(--error-soft);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.status-issue-flagged {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.status-issue-skipped {
+  background: var(--surface-alt);
+  color: var(--muted);
+}
+

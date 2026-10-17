@@ -24,7 +24,7 @@
 - Prioritization baseline implemented but **only unit-tested on synthetic inputs**; not
   evaluated on real records. Scores are **not** computed/stored for complaints through the
   API yet, so the `priority_score` column is null in normal use.
-- CSV import, recurrence analysis, evaluation, and simulation are **not implemented yet**.
+- Recurrence analysis, evaluation, and simulation are **not implemented yet** (planned).
 - No authentication or authorization, and no audit actor: complaint history `changed_by` is a
   fixed `api` placeholder. Not required for local, single-user development, and none is
   claimed to exist.

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     samples_dir: Path = Path("samples")
     max_import_size_mb: int = 100
+    max_import_rows: int = 50000
     supported_import_types: list[str] = ["text/csv", "application/csv"]
 
 

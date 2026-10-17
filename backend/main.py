@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.core.config import settings
 from backend.core.errors import register_error_handlers
 from backend.core.logging import setup_logging
-from backend.api.routes import complaints, meta
+from backend.api.routes import complaints, imports, meta
 
 setup_logging()
 
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.project_name, version="0.2.0", lifespan=lifespan)
+app = FastAPI(title=settings.project_name, version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,8 +38,9 @@ register_error_handlers(app)
 
 app.include_router(complaints.router, prefix=settings.api_v1_prefix)
 app.include_router(meta.router, prefix=settings.api_v1_prefix)
+app.include_router(imports.router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/")
 def root():
-    return {"message": "RepeatFix API", "version": "0.2.0", "status": "ok"}
+    return {"message": "RepeatFix API", "version": "0.3.0", "status": "ok"}

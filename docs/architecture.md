@@ -1,6 +1,6 @@
 # Architecture
 
-Current architecture after Phase B. Sections marked _(planned)_ are not yet implemented.
+Current architecture after Phase C. Sections marked _(planned)_ are not yet implemented.
 
 ## Overview
 
@@ -65,9 +65,15 @@ Timestamps are stored as **naive UTC** in SQLite and serialized by the API with 
 
 - Allowed statuses: `open`, `in_progress`, `resolved`, `closed`
   (`backend/core/constants.py`).
-- `resolved_at` is set when status moves into a resolved status and cleared when it moves back
-  to an unresolved one.
-- History rows are **append-only**; no history entry is ever mutated or deleted by the app.
+### Phase C: CSV ingestion pipeline
+
+- `backend/services/imports/fields.py`: column alias definitions (case-insensitive), header normalization, field specs.
+- `backend/services/imports/mapping.py`: auto-detection of mapping, explicit mapping validation (ambiguous/unsupported/missing required).
+- `backend/services/imports/validation.py`: per-row validation (types, lengths, ranges, dates, status/category).
+- `backend/services/imports/duplicates.py`: text normalization, exact signature, potential duplicate detection (similarity, location haversine, time window).
+- `backend/services/imports/service.py`: bounded streaming read (CSV, UTF-8/UTF-8-BOM), chunked counting, transaction orchestration (two-phase), identity computation, persistence, error mapping.
+- `backend/models/import_batch.py`: `ImportBatch`, `ComplaintImportLink`; `Complaint.import_links` added.
+- `backend/api/routes/imports.py`: `GET /imports/fields`, `POST /imports/csv`, `GET /imports`, `GET /imports/{import_id}`.
 
 ## Database schema (current)
 
@@ -116,6 +122,10 @@ Timestamps are stored as **naive UTC** in SQLite and serialized by the API with 
 | PATCH | `/api/v1/complaints/{complaint_id}` | partial update; writes history |
 | GET | `/api/v1/complaints/{complaint_id}/history` | append-only change history |
 | GET | `/api/v1/meta/complaints` | overall total, status counts, category counts |
+| GET | `/api/v1/imports/fields` | import metadata (fields, aliases, limits) |
+| POST | `/api/v1/imports/csv` | CSV import/dry-run (multipart) |
+| GET | `/api/v1/imports` | import history (paginated, `X-Total-Count`) |
+| GET | `/api/v1/imports/{import_id}` | import detail/summary |
 
 List query parameters: `status`, `category`, `location` (matches `location_label` or
 `administrative_area`), `q` (substring search over id/title/description), `created_from`,

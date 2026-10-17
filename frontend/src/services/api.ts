@@ -4,6 +4,9 @@ import type {
   ComplaintHistoryItem,
   ComplaintInput,
   ComplaintMeta,
+  ImportFieldsResponse,
+  ImportListItem,
+  ImportSummary,
   ListParams,
 } from '../types'
 
@@ -62,6 +65,9 @@ export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 0) return err.message
     if (err.status === 404) return 'Not found'
+    if (isDetailObject(err.detail) && typeof err.detail.message === 'string') {
+      return err.detail.message
+    }
     if (err.status === 422) {
       const fields = Object.entries(err.fieldErrors)
       if (fields.length) return fields.map(([f, m]) => `${f}: ${m}`).join('; ')
@@ -72,6 +78,22 @@ export function errorMessage(err: unknown): string {
   }
   if (err instanceof Error) return err.message
   return 'Unexpected error'
+}
+
+/** True when an error detail is the import `{ message, details }` envelope. */
+export function isDetailObject(detail: unknown): detail is { message: string; details?: unknown } {
+  return !!detail && typeof detail === 'object' && 'message' in (detail as Record<string, unknown>)
+}
+
+/** Structured `details` payload from an import error, if present. */
+export function importErrorDetails(err: unknown): Record<string, unknown> | null {
+  if (err instanceof ApiError && isDetailObject(err.detail)) {
+    const details = err.detail.details
+    if (details && typeof details === 'object' && !Array.isArray(details)) {
+      return details as Record<string, unknown>
+    }
+  }
+  return null
 }
 
 async function rawRequest(path: string, init?: RequestInit): Promise<Response> {
@@ -165,6 +187,52 @@ export function getComplaintHistory(complaintId: string): Promise<ComplaintHisto
 
 export function getComplaintMeta(): Promise<ComplaintMeta> {
   return request<ComplaintMeta>('/meta/complaints')
+}
+
+export function getImportFields(): Promise<ImportFieldsResponse> {
+  return request<ImportFieldsResponse>('/imports/fields')
+}
+
+export interface ImportCsvOptions {
+  mapping?: Record<string, string>
+  sourceLabel?: string
+  synthetic?: boolean
+  dryRun?: boolean
+}
+
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form })
+  } catch (e) {
+    throw new ApiError(0, 'Network error: could not reach the backend', e)
+  }
+  const data = await parseBody(res)
+  if (!res.ok) {
+    const detail = (data as { detail?: unknown })?.detail ?? data
+    throw new ApiError(res.status, `Request failed (${res.status})`, detail)
+  }
+  return data as T
+}
+
+export function importCsv(file: File, options: ImportCsvOptions = {}): Promise<ImportSummary> {
+  const form = new FormData()
+  form.append('file', file)
+  if (options.mapping && Object.keys(options.mapping).length) {
+    form.append('mapping', JSON.stringify(options.mapping))
+  }
+  if (options.sourceLabel) form.append('source_label', options.sourceLabel)
+  form.append('synthetic', String(options.synthetic ?? false))
+  form.append('dry_run', String(options.dryRun ?? false))
+  return requestForm<ImportSummary>('/imports/csv', form)
+}
+
+export function listImports(params?: ListParams): Promise<ListResult<ImportListItem>> {
+  return requestList<ImportListItem>(`/imports${buildQuery(params as Record<string, unknown>)}`)
+}
+
+export function getImport(importId: string): Promise<ImportSummary> {
+  return request<ImportSummary>(`/imports/${encodeURIComponent(importId)}`)
 }
 
 export type { CategoryCount }

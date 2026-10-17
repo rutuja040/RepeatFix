@@ -32,6 +32,11 @@ class Complaint(Base):
     raw_imported_values = Column(Text, nullable=True)
 
     history = relationship("ComplaintHistory", back_populates="complaint", cascade="all, delete-orphan")
+    import_links = relationship(
+        "ComplaintImportLink",
+        back_populates="complaint",
+        cascade="all, delete-orphan",
+    )
 
 
 class ComplaintHistory(Base):

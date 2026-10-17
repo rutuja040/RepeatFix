@@ -39,6 +39,7 @@ export function Layout() {
             </NavLink>
             <NavLink to="/complaints">Complaints</NavLink>
             <NavLink to="/complaints/new">New complaint</NavLink>
+            <NavLink to="/imports">Import</NavLink>
           </nav>
           <div
             className={`conn conn-${status}`}

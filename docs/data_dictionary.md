@@ -48,14 +48,37 @@ Provenance categories kept strictly separate:
 | `changed_at` | DATETIME | server default (UTC) |
 | `changed_by` | TEXT | actor; currently a fixed `api` placeholder (no auth system yet) |
 
-## Validation rules (current)
+## Import batch fields
 
-- `extra="forbid"` on request models — unknown fields are rejected with HTTP 422.
-- `latitude` ∈ [-90, 90], `longitude` ∈ [-180, 180].
-- Text fields have maximum lengths (e.g. `title` 1–300 chars); blank strings are rejected
-  where a value is required.
-- On update, `complaint_id`, `created_at`, `synthetic`, `source`, `raw_imported_values`,
-  `priority_score`, and `priority_rationale` are not user-editable.
+| Field | Type | Category | Notes |
+|---|---|---|---|
+| `id` | INTEGER | system | surrogate key |
+| `import_id` | TEXT | system | UUID hex, unique |
+| `source_filename` | TEXT | provenance | original filename |
+| `source_label` | TEXT | provenance | dataset label if provided |
+| `dataset_identity` | TEXT | provenance | `label:<label>` or `cols:<sha256[:16]>` |
+| `content_sha256` | TEXT | provenance | SHA256 of uploaded content bytes |
+| `mapping_json` | TEXT | provenance | target→source mapping used |
+| `unmatched_json` | TEXT | provenance | unmatched source columns |
+| `issues_json` | TEXT | provenance | per-row issues (truncated to 500) |
+| `issues_truncated` | BOOLEAN | system | true if issues exceeded cap |
+| `message` | TEXT | system | human-readable batch message |
+| `status` | TEXT | system | `completed`, `empty`, `failed` |
+| `dry_run` | BOOLEAN | system | true if no records persisted |
+| `total_rows`, `accepted_rows`, `rejected_rows`, `skipped_rows`, `flagged_rows`, `exact_duplicate_rows`, `potential_duplicate_rows` | INTEGER | system | counts |
+| `created_at`, `completed_at` | DATETIME | system | UTC (naive) |
+
+## Complaint import link fields
+
+| Field | Type | Category | Notes |
+|---|---|---|---|
+| `id` | INTEGER | system | surrogate key |
+| `complaint_id` | INTEGER | system | FK → complaints.id (unique; one import source per complaint) |
+| `import_batch_id` | INTEGER | system | FK → import_batches.id |
+| `dataset_identity` | TEXT | provenance | identity of dataset |
+| `source_record_id` | TEXT | provenance | complaint_id from source |
+| `source_row_number` | INTEGER | provenance | 1-based row in CSV (header=1, data starts 2) |
+| `source_key` | TEXT | provenance | `<dataset_identity>::<source_record_id>` (unique, nullable) |
 
 ## Distinguishing observed vs. predicted vs. user-entered
 
