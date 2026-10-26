@@ -1,8 +1,79 @@
 # Evaluation plan
 
-Status: **planned — no evaluation results exist yet.** This document defines *how* the system
-will be evaluated once a suitable labelled dataset is loaded (Phase F). Metrics are not
-reported here because none have been computed.
+Status: **partially implemented — a minimal, reproducible, label-free harness exists (Phase
+D2.1); no evaluation *results* claiming accuracy are reported.** This document defines *how*
+the system will be evaluated once a suitable labelled dataset is loaded (Phase F). Metrics
+that require ground-truth labels are not computed, and are reported as **not evaluated**.
+
+## Implemented label-free harness (Phase D2.1)
+
+`backend/services/evaluation/` implements a deterministic, read-only evaluation that is
+runnable today without any labelled data:
+
+- `harness.py` — loads a snapshot, applies a temporal as-of cutoff, computes eligible sets,
+  runs the baselines, runs recurrence signal ablations and assembles the report.
+- `baselines.py` — FIFO, complaint-count and the existing rule-based priority ordering.
+- `reporting.py` — renders the report to JSON and Markdown.
+
+Entry point:
+
+```
+.\\.venv\\Scripts\\python.exe scripts\\run_evaluation.py
+.\\.venv\\Scripts\\python.exe scripts\\run_evaluation.py --cutoff 2026-06-01T00:00:00 --out data\\eval_reports
+```
+
+What the harness reports: snapshot description, evaluation cutoff, configuration, record
+counts, per-field missing-data rates, the three baseline orderings, and the recurrence
+ablation (relation counts / coverage per configuration, plus pairwise agreement).
+
+What the harness deliberately does **not** report: precision, recall, F1, Precision@K,
+NDCG, MAE/RMSE, or calibration. Those require ground-truth labels that do not exist, so
+every label-dependent metric is emitted with `status: "not_evaluated"` and an explicit
+reason.
+
+### Temporal as-of evaluation
+
+- `RecurrenceAnalysisService.analyze(...)` accepts an optional, backward-compatible `cutoff`.
+  When set, candidates created after the cutoff (or with no timestamp) are ignored, so a
+  historical decision can never depend on future information. With no cutoff the Phase D1
+  behaviour is unchanged.
+- The harness also filters its own candidate pool at query time, and passes the cutoff to
+  the service as defence in depth.
+- `resolved_at` is never used as a feature anywhere in the harness.
+
+### Recurrence signal ablation
+
+`analyze(...)` exposes no ablation parameter. The harness passes its `disabled_signals`
+set through a private evaluation-side subclass (`_AblationRecurrenceService` in
+`backend/services/evaluation/harness.py` that overrides the protected `_required_signals()`
+hook), so the production `RecurrenceAnalysisService.analyze()` signature carries no
+ablation surface at all. Disabling a signal removes it from the four-signal acceptance
+requirement (the signal is still computed and reported, it just stops being *required*),
+which is the only meaningful ablation of a conjunctive rule. Configurations: `full`,
+`without_text_similarity`, `without_same_category`, `without_nearby`,
+`without_time_proximity`.
+
+Reported per configuration: relation counts, coverage, evidence-code frequencies and
+Jaccard agreement between configurations. **Agreement is not accuracy** — without pair
+labels a configuration that agrees with the full policy may be equally wrong. When both
+compared relation sets are empty the Jaccard index is undefined (0/0); the report emits
+`null` with `jaccard_status: "undefined_both_sets_empty"` rather than a misleading `1.0`.
+
+The report's configuration block records the numeric thresholds used by the run
+(recurrence: similarity, metres, days; count-based: metres, days), taken live from the
+production constants so the experiment can be reproduced.
+
+### Scientific limitations of the current harness
+
+- No ground-truth recurrence, relevance or resolution labels exist, so the harness can only
+  compare methods by their deterministic orderings and set overlap, never by correctness.
+- The recurring "age" component of the rule-based score is 0 for unresolved records, so that
+  baseline is driven almost entirely by location completeness and uncertainty penalties.
+- Recurrence confidence is an explainable sum of weights, not a calibrated probability.
+- The dataset is tiny (synthetic samples plus a small development database), so no
+  statistically meaningful conclusion can be drawn; the harness exists to prove the
+  protocol and keep it reproducible.
+
 
 ## Research question
 

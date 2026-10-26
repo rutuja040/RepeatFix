@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import List
+from typing import FrozenSet, List, Optional
 
 from backend.core.time import to_naive_utc
 from backend.services.imports.duplicates import (
@@ -27,6 +27,13 @@ _CONTRIB_LOCATION = 0.3
 _CONTRIB_CATEGORY = 0.2
 _CONTRIB_TIME = 0.1
 
+# The four independent evidence signals that together define the conservative
+# Phase D1 recurrence policy. Exposed as a named constant so the evaluation
+# harness can run signal ablations without re-implementing the decision logic.
+REQUIRED_SIGNALS = frozenset(
+    {"text_similarity", "same_category", "nearby", "time_proximity"}
+)
+
 
 class RecurrenceAnalysisService:
     """Service for analyzing potential recurrence relationships.
@@ -42,13 +49,39 @@ class RecurrenceAnalysisService:
         pass
 
     def analyze(
-        self, complaint: ComplaintInput, candidates: List[ComplaintInput]
+        self,
+        complaint: ComplaintInput,
+        candidates: List[ComplaintInput],
+        *,
+        cutoff: Optional[datetime] = None,
     ) -> RecurrenceAnalysisResult:
-        """Analyze relationships between complaint and candidate complaints."""
+        """Analyze relationships between complaint and candidate complaints.
+
+        Parameters
+        ----------
+        cutoff:
+            Optional historical evaluation cutoff (t0). When supplied, any
+            candidate created *after* the cutoff is ignored (and candidates
+            with no ``created_at`` are treated conservatively and skipped), so a
+            historical decision can never depend on future information. When
+            omitted the original behaviour is preserved exactly.
+
+        Notes
+        -----
+        The acceptance rule is the Phase D1 rule
+        (:data:`REQUIRED_SIGNALS`, all four signals required). Signal
+        ablation is **not** part of this public API: it is an evaluation-only
+        concern, implemented by overriding the protected
+        :meth:`_required_signals` hook in the evaluation harness. Production
+        callers therefore cannot weaken the decision rule by accident.
+        """
         warnings: List[str] = []
         assumptions: List[str] = []
         missing_data: List[str] = []
         relations: List[RecurrenceRelation] = []
+
+        cutoff_naive = to_naive_utc(cutoff) if cutoff is not None else None
+        required_codes = self._required_signals()
 
         has_reliable_coords = complaint.latitude is not None and complaint.longitude is not None
         has_reliable_time = complaint.created_at is not None
@@ -67,6 +100,12 @@ class RecurrenceAnalysisService:
         for cand in candidates:
             if cand.complaint_id == complaint.complaint_id:
                 continue
+
+            # Temporal as-of guard: never let a candidate created after the
+            # evaluation cutoff influence a historical decision.
+            if cutoff_naive is not None:
+                if cand.created_at is None or to_naive_utc(cand.created_at) > cutoff_naive:
+                    continue
 
             # Check exact source relation via raw import values/source key if present
             if self._is_same_source_record(complaint, cand):
@@ -180,12 +219,11 @@ class RecurrenceAnalysisService:
             # location must not substitute for validated geographic proximity.
             # Require text similarity, category compatibility, strong geographic
             # proximity and time proximity together; reject if any is missing.
-            required_codes = {
-                "text_similarity",
-                "same_category",
-                "nearby",
-                "time_proximity",
-            }
+            # ``required_codes`` is the Phase D1 default; only an
+            # evaluation-only subclass of this service narrows it (signal
+            # ablation).
+            if not required_codes:
+                continue
             if not required_codes.issubset({r.code for r in reasons}):
                 continue
 
@@ -219,6 +257,17 @@ class RecurrenceAnalysisService:
             has_reliable_time=has_reliable_time,
             missing_data=missing_data,
         )
+
+    def _required_signals(self) -> FrozenSet[str]:
+        """The evidence codes that must be present for acceptance (Phase D1).
+
+        Production behaviour is the full :data:`REQUIRED_SIGNALS` set. The
+        hook exists so that *evaluation-only* ablations can vary the rule
+        without widening the public API: a subclass in the evaluation
+        harness narrows the set. Overriding it changes which signals are
+        **required**; every signal is still computed and reported.
+        """
+        return REQUIRED_SIGNALS
 
     def _is_same_source_record(self, a: ComplaintInput, b: ComplaintInput) -> bool:
         try:
