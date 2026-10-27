@@ -78,10 +78,11 @@ from backend.services.simulation.policies import (
     fifo_key,
     make_policy,
     policies_for_config,
+    rule_based_key,
     selection_rank,
     validate_policy,
 )
-from backend.services.simulation.queue_sim import run_policy
+from backend.services.simulation.queue_sim import _snapshot_of, run_policy
 
 EPOCH = datetime(2026, 1, 1)
 
@@ -2506,3 +2507,140 @@ class TestProvenanceLabelling:
         joined = "\n".join(markdown.splitlines()[:8])
         assert "reproduces the report" in joined
         assert "does **not** reproduce this report" not in joined
+
+
+# ---------------------------------------------------------------------------
+# Severity-label propagation regression tests (severity-propagation change).
+# Covers: SimComplaint → PolicySnapshot survival; rule-based scorer receives
+# the observable label; missing-severity remains supported; FIFO ordering is
+# unaffected by severity changes.
+# ---------------------------------------------------------------------------
+
+
+class TestSeverityPropagation:
+    """Regression tests for the severity-label propagation added in the
+    severity-propagation working-tree change.
+
+    The four tests exercise the data flow:
+      SimComplaint.severity_label
+        → _snapshot_of()
+          → PolicySnapshot.severity_label
+            → _score() / rule_based_key()
+              → RuleBasedPrioritizer.score()
+
+    No severity labels are invented to favour a policy outcome: the tests
+    only verify the plumbing (label survival, scorer receipt, None tolerance,
+    FIFO independence). They do not assert that any policy outperforms another.
+    """
+
+    # ------------------------------------------------------------------
+    # Test 1: severity_label survives SimComplaint → PolicySnapshot.
+    # ------------------------------------------------------------------
+
+    def test_severity_label_carried_from_simcomplaint_to_policysnapshot(self):
+        """A severity_label on SimComplaint appears unchanged on the snapshot."""
+        complaint = SimComplaint(
+            complaint_id="SEV-001",
+            arrival=EPOCH,
+            service_days=0.1,
+            severity_label="high",
+        )
+        snapshot = _snapshot_of(complaint)
+        assert snapshot.severity_label == "high"
+
+    def test_none_severity_label_carried_from_simcomplaint_to_policysnapshot(self):
+        """severity_label=None is faithfully propagated (no substitution)."""
+        complaint = SimComplaint(
+            complaint_id="SEV-002",
+            arrival=EPOCH,
+            service_days=0.1,
+            severity_label=None,
+        )
+        snapshot = _snapshot_of(complaint)
+        assert snapshot.severity_label is None
+
+    # ------------------------------------------------------------------
+    # Test 2: the rule-based policy key receives the observable severity label.
+    # ------------------------------------------------------------------
+
+    def test_rule_based_key_receives_observable_severity_label(self):
+        """rule_based_key() produces a higher score for a recognised severity
+        label than for None.  This does not assert superiority over another
+        policy — it verifies that the scorer's severity branch is reachable
+        from the snapshot, which is what the propagation change enables.
+        """
+        snapshot_with = PolicySnapshot(
+            complaint_id="SEV-WITH",
+            created_at=EPOCH,
+            severity_label="high",
+        )
+        snapshot_without = PolicySnapshot(
+            complaint_id="SEV-WITHOUT",
+            created_at=EPOCH,
+            severity_label=None,
+        )
+        score_with, _, _ = rule_based_key(snapshot_with)
+        score_without, _, _ = rule_based_key(snapshot_without)
+        # A recognised "high" label contributes sev=0.9 with weight 0.40
+        # vs sev=0.0 for None; scores must differ (not testing exact values).
+        assert score_with > score_without
+
+    # ------------------------------------------------------------------
+    # Test 3: missing severity (None) continues to be supported.
+    # ------------------------------------------------------------------
+
+    def test_rule_based_key_tolerates_missing_severity_label(self):
+        """rule_based_key() must not raise when severity_label is None."""
+        snapshot = PolicySnapshot(
+            complaint_id="SEV-NONE",
+            created_at=EPOCH,
+            severity_label=None,
+        )
+        score, tie_dt, cid = rule_based_key(snapshot)
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+        assert tie_dt == EPOCH
+        assert cid == "SEV-NONE"
+
+    # ------------------------------------------------------------------
+    # Test 4: severity changes do NOT alter FIFO ordering.
+    # ------------------------------------------------------------------
+
+    def test_fifo_ordering_unchanged_by_severity_label(self):
+        """Changing severity_label on a complaint must not affect FIFO dispatch
+        order, because FIFO ignores all attributes other than created_at and
+        complaint_id.
+        """
+        config = SimConfig(
+            t_warm_days=0.0, t_obs_days=5.0, t_drain_max_days=5.0
+        )
+        # Three complaints arriving at the same time so that queue ordering
+        # is determined purely by FIFO tie-break (created_at then id).
+        complaints_base = tuple(
+            SimComplaint(
+                complaint_id=f"SEV-FIFO-{i}",
+                arrival=EPOCH,
+                service_days=0.5,
+                severity_label=None,
+            )
+            for i in range(3)
+        )
+        complaints_sev = tuple(
+            replace(c, severity_label="critical") for c in complaints_base
+        )
+        stream_base = ArrivalStream(
+            complaints=complaints_base, master_seed=0, cell_id="", seed=0
+        )
+        stream_sev = ArrivalStream(
+            complaints=complaints_sev, master_seed=0, cell_id="", seed=0
+        )
+        result_base = run_policy(stream_base, config, FIFO)
+        result_sev = run_policy(stream_sev, config, FIFO)
+        # Service start times must be identical under both label sets.
+        for complaint in complaints_base:
+            assert result_base.outcome(complaint.complaint_id).start == (
+                result_sev.outcome(complaint.complaint_id).start
+            ), (
+                f"{complaint.complaint_id}: FIFO start changed when severity "
+                "label changed — severity must not influence FIFO ordering"
+            )

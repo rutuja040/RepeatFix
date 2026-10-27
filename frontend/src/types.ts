@@ -149,3 +149,34 @@ export interface ImportListItem {
   potential_duplicate_rows: number
   message: string | null
 }
+
+// ---- Recurrence analysis types (mirrors backend/schemas/recurrence.py) ----
+
+export interface RecurrenceReason {
+  code: string
+  description: string
+  weight_contribution: number
+  evidence: Record<string, string | null>
+}
+
+export interface RecurrenceRelation {
+  related_complaint_id: string
+  relation_type: string  // "exact_source", "potential_recurrence", "related_candidate"
+  confidence_explained: number  // 0-1; NOT a calibrated probability
+  confidence_label: string      // "low", "medium", "high"
+  reasons: RecurrenceReason[]
+  evidence_summary: string
+  requires_human_review: boolean
+  is_auto_merge_candidate: boolean
+}
+
+export interface RecurrenceAnalysisResponse {
+  complaint_id: string
+  analyzed_at: string
+  relations: RecurrenceRelation[]
+  warnings: string[]
+  assumptions: string[]
+  missing_data: string[]
+  has_reliable_coords: boolean
+  has_reliable_time: boolean
+}

@@ -8,6 +8,7 @@ import type {
   ImportListItem,
   ImportSummary,
   ListParams,
+  RecurrenceAnalysisResponse,
 } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000/api/v1'
@@ -235,4 +236,14 @@ export function getImport(importId: string): Promise<ImportSummary> {
   return request<ImportSummary>(`/imports/${encodeURIComponent(importId)}`)
 }
 
-export type { CategoryCount }
+export function analyzeRecurrence(
+  complaintId: string,
+  maxCandidates = 50,
+): Promise<RecurrenceAnalysisResponse> {
+  return request<RecurrenceAnalysisResponse>('/recurrence/analyze', {
+    method: 'POST',
+    body: JSON.stringify({ complaint_id: complaintId, max_candidates: maxCandidates }),
+  })
+}
+
+export type { CategoryCount, RecurrenceAnalysisResponse }

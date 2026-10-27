@@ -10,6 +10,7 @@ Business rules live here (not in routes, not in the frontend):
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -20,6 +21,69 @@ from backend import models
 from backend.core.constants import RESOLVED_STATUSES, SORTABLE_FIELDS
 from backend.core.time import to_naive_utc, utcnow
 from backend.schemas.complaint import ComplaintCreate, ComplaintUpdate
+from backend.services.prioritization.rule_based import (
+    PrioritizationInputs,
+    RuleBasedPrioritizer,
+)
+
+_PRIORITIZER = RuleBasedPrioritizer()
+
+# Fields used to compute evidence_completeness (0–1 fraction present).
+# This is a transparent, documented measure — not an invented score.
+_COMPLETENESS_FIELDS = ("description", "category", "severity_label", "location_label")
+
+
+def _compute_evidence_completeness(complaint: models.Complaint) -> float:
+    """Return the fraction of key optional fields that are present (0–1).
+
+    Uses only the four text/label fields that are most informative for
+    human-readable prioritization. GPS coordinates are handled separately
+    by the prioritizer's ``location_completeness`` component.
+    """
+    present = sum(
+        1 for f in _COMPLETENESS_FIELDS if getattr(complaint, f, None) not in (None, "")
+    )
+    return round(present / len(_COMPLETENESS_FIELDS), 4)
+
+
+def _score_complaint(complaint: models.Complaint) -> tuple[float, str]:
+    """Score one complaint with the production rule-based prioritizer.
+
+    Builds :class:`PrioritizationInputs` from actual stored fields only.
+    No severity or recurrence evidence is fabricated:
+    - ``severity_label`` is passed as-is (None when absent).
+    - ``recurrence_evidence`` is left at the scorer default (0.0) since no
+      recurrence analysis has been run at creation time.
+    - ``evidence_completeness`` is derived from the fraction of optional
+      fields that are actually populated.
+
+    Returns a ``(priority_score, priority_rationale)`` tuple where
+    ``priority_rationale`` is a JSON string of the result dict so the full
+    explanation is preserved without adding new columns.
+    """
+    inputs = PrioritizationInputs(
+        complaint_id=complaint.complaint_id,
+        category=complaint.category,
+        created_at=complaint.created_at,
+        resolved_at=complaint.resolved_at,
+        status=complaint.status,
+        latitude=complaint.latitude,
+        longitude=complaint.longitude,
+        severity_label=complaint.severity_label,
+        evidence_completeness=_compute_evidence_completeness(complaint),
+        # recurrence_evidence is 0.0 (scorer default) — no analysis run yet.
+    )
+    result = _PRIORITIZER.score(inputs)
+    rationale_str = json.dumps(
+        {
+            "rationale": result.rationale,
+            "uncertainty_flags": result.uncertainty_flags,
+            "missing_fields": result.missing_fields,
+            "components": result.components,
+        },
+        separators=(",", ":"),
+    )
+    return result.priority_score, rationale_str
 
 # User-editable fields (mirrors ComplaintUpdate). Provenance and system fields excluded.
 PERMITTED_UPDATE_FIELDS: Sequence[str] = (
@@ -129,6 +193,13 @@ def create_complaint(db: Session, payload: ComplaintCreate) -> models.Complaint:
     complaint = models.Complaint(**data, created_at=created_at, last_updated_at=utcnow())
     db.add(complaint)
     db.flush()
+
+    # Score the complaint using the production rule-based prioritizer.
+    # This runs after flush so complaint_id and all fields are resolved.
+    priority_score, priority_rationale = _score_complaint(complaint)
+    complaint.priority_score = priority_score
+    complaint.priority_rationale = priority_rationale
+
     record_history(
         db,
         complaint,

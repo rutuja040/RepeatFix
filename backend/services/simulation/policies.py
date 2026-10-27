@@ -104,6 +104,7 @@ class PolicySnapshot:
     status: str = "open"
     source: str = "simulated"
     synthetic: bool = True
+    severity_label: Optional[str] = None
     snapshot_count: int = 0
     d1_evidence_count: int = 0
 
@@ -170,10 +171,10 @@ def _score(
     """Production rule-based score for one snapshot (design §4.2).
 
     ``resolved_at`` is always ``None`` (no resolution information exists or
-    may be assumed, §3.6 table row 2); ``severity_label`` is not carried by
-    the policy-visible snapshot and is passed through as ``None`` (mirrors
-    reality: no dataset supplies it, §1/§4.2); ``evidence_completeness``
-    keeps the scorer's documented default 0.5.
+    may be assumed, §3.6 table row 2); ``evidence_completeness`` keeps the
+    scorer's documented default 0.5. ``severity_label`` is passed through from
+    the observable snapshot when present (preserving missing-severity
+    behavior when ``None``).
     """
     result = _SCORER.score(
         PrioritizationInputs(
@@ -184,7 +185,7 @@ def _score(
             status=snapshot.status,
             latitude=snapshot.latitude,
             longitude=snapshot.longitude,
-            severity_label=None,
+            severity_label=snapshot.severity_label,
             evidence_completeness=0.5,
             recurrence_evidence=recurrence_evidence,
         )

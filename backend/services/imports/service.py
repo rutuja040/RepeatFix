@@ -34,6 +34,7 @@ from backend.core.constants import (
     IMPORT_STATUS_FAILED,
 )
 from backend.core.time import utcnow
+from backend.services.complaints.service import _score_complaint
 from backend.services.imports import duplicates
 from backend.services.imports.duplicates import Candidate, PotentialDuplicateIndex
 from backend.services.imports.fields import normalize_header
@@ -565,6 +566,12 @@ def _insert_accepted_rows(
         )
         db.add(complaint)
         db.flush()
+
+        # Score the accepted complaint with the production rule-based prioritizer.
+        # Runs after flush so all fields (including complaint_id) are resolved.
+        priority_score, priority_rationale = _score_complaint(complaint)
+        complaint.priority_score = priority_score
+        complaint.priority_rationale = priority_rationale
 
         db.add(
             models.ComplaintHistory(

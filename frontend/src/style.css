@@ -780,3 +780,70 @@ h3 {
   color: var(--muted);
 }
 
+/* ------------------------------------------------ recurrence analysis */
+
+.recurrence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recurrence-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--surface-alt);
+}
+
+.recurrence-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.recurrence-card-id {
+  font-weight: 600;
+  font-size: 0.95em;
+}
+
+.recurrence-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.recurrence-summary {
+  margin: 0 0 8px;
+  font-size: 0.9em;
+  color: var(--text);
+}
+
+.recurrence-reasons-table {
+  margin-top: 8px;
+  font-size: 0.88em;
+}
+
+/* Inline link-style button used inside cards */
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88em;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link:hover {
+  color: var(--accent-hover);
+}
+
+.btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

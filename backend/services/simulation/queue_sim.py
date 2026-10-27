@@ -92,6 +92,7 @@ def _snapshot_of(
         status=complaint.status,
         source=complaint.source,
         synthetic=complaint.synthetic,
+        severity_label=complaint.severity_label,
         snapshot_count=snapshot_count,
         d1_evidence_count=d1_count,
     )

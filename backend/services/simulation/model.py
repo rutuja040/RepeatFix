@@ -73,6 +73,7 @@ POLICY_VISIBLE_FIELDS: Tuple[str, ...] = (
     "status",
     "source",
     "synthetic",
+    "severity_label",
     "snapshot_count",
     "d1_evidence_count",
 )

@@ -85,3 +85,4 @@ data/*
 # Local only
 .local/
 opencode_logs/
+test_sim_results.txt
